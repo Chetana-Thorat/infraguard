@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
+	"github.com/Chetana-Thorat/infraguard/internal/checks"
 	"github.com/Chetana-Thorat/infraguard/internal/scanner"
 	"github.com/spf13/cobra"
 )
@@ -27,9 +30,33 @@ var scanCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Println("Found files:")
-		for _, f := range files {
-			fmt.Println("-", f)
+		rules := []checks.Check{
+			checks.SSHOpenToWorldCheck{},
+		}
+
+		var findingsFound bool
+
+		for _, file := range files {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+
+			for _, rule := range rules {
+				findings, err := rule.Run(file, content)
+				if err != nil {
+					return err
+				}
+
+				for _, finding := range findings {
+					findingsFound = true
+					printFinding(finding.RuleID, string(finding.Severity), finding.FilePath, finding.Message, finding.Recommendation)
+				}
+			}
+		}
+
+		if !findingsFound {
+			fmt.Println("No policy violations found.")
 		}
 
 		return nil
@@ -38,4 +65,13 @@ var scanCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
+}
+
+func printFinding(ruleID, severity, filePath, message, recommendation string) {
+	fmt.Println()
+	fmt.Printf("❌ %s\n", strings.ToUpper(severity))
+	fmt.Printf("Rule: %s\n", ruleID)
+	fmt.Printf("File: %s\n", filePath)
+	fmt.Printf("%s\n", message)
+	fmt.Printf("Recommendation: %s\n", recommendation)
 }
