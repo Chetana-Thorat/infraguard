@@ -11,9 +11,11 @@ import (
 )
 
 var scanCmd = &cobra.Command{
-	Use:   "scan [path]",
-	Short: "Scan a directory for Terraform and YAML files",
-	Args:  cobra.MaximumNArgs(1),
+	Use:           "scan [path]",
+	Short:         "Scan a directory for Terraform and YAML files",
+	Args:          cobra.MaximumNArgs(1),
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := "."
 		if len(args) == 1 {
@@ -32,9 +34,10 @@ var scanCmd = &cobra.Command{
 
 		rules := []checks.Check{
 			checks.SSHOpenToWorldCheck{},
+			checks.K8sResourceLimitsCheck{},
 		}
 
-		var findingsFound bool
+		hasFindings := false
 
 		for _, file := range files {
 			content, err := os.ReadFile(file)
@@ -49,16 +52,23 @@ var scanCmd = &cobra.Command{
 				}
 
 				for _, finding := range findings {
-					findingsFound = true
-					printFinding(finding.RuleID, string(finding.Severity), finding.FilePath, finding.Message, finding.Recommendation)
+					hasFindings = true
+					printFinding(
+						finding.RuleID,
+						string(finding.Severity),
+						finding.FilePath,
+						finding.Message,
+						finding.Recommendation,
+					)
 				}
 			}
 		}
 
-		if !findingsFound {
-			fmt.Println("No policy violations found.")
+		if hasFindings {
+			return fmt.Errorf("policy violations found")
 		}
 
+		fmt.Println("No policy violations found.")
 		return nil
 	},
 }
